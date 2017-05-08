@@ -39,7 +39,7 @@ import sys
 #
 ################################################################################
 
-def die(msg):
+def die(msg=""):
     print msg
     sys.exit(1)
 
@@ -110,6 +110,25 @@ def display_commits_list(base, branch_name):
 
     return num_commits
 
+
+################################################################################
+#
+#   Restores the given branch to its old HEAD
+#
+#   Params:
+#       branch_name = the name of the branch to restore
+#       old_head = the old HEAD commit to restore to
+#
+################################################################################
+
+def restore_branch(branch_name, old_head):
+    print "Restoring branch '{}' to its old HEAD".format(branch_name)
+    try:
+        git.run_command('checkout', '-B', branch_name, old_head)
+    except GitException as e:
+        print "Git command '{}' failed with the following error:".format(e.args[0])
+        die(e.args[1].rstrip('\n'))
+
 # Set up command line arguments
 parser = argparse.ArgumentParser(usage='%(prog)s [ARGUMENTS]',
     description='Set timestamps of all commits in a branch to the current time')
@@ -146,6 +165,14 @@ else:
 
 commits_range_argument = 'HEAD~' + str(num_commits)
 
+# Save the hash of the current HEAD (so that we can restore the branch to its
+# original HEAD if something goes wrong while resetting the timestamps)
+try:
+    old_head = git.run_command('rev-parse', 'HEAD')
+except GitException as e:
+    print "Git command '{}' failed with the following error:".format(e.args[0])
+    die(e.args[1].rstrip('\n'))
+
 # Perform the actual resetting of the timestamps
 try:
     if gpg_sign_argument:
@@ -155,7 +182,24 @@ try:
         git.run_command('rebase', '--ignore-date', commits_range_argument)
 except git.GitException as e:
     print "Git command '{}' failed with the following error:".format(e.args[0])
-    die(e.args[1].rstrip('\n'))
+    print e.args[1].rstrip('\n')
+    restore_branch(branch_name, old_head)
+    die("'{}' restored to its original location".format(branch_name))
+
+# Confirm that there are no changes between the old HEAD and the new HEAD
+# (as the retimestamp operation is only supposed to modify metadata)
+try:
+    git_diff_output = git.run_command('diff', old_head, 'HEAD')
+
+    if git_diff_output:
+        print "Something went wrong with the re-timestamp operation"
+        restore_branch(branch_name, old_head)
+        die("'{}' restored to its original location".format(branch_name))
+except GitException as e:
+    print "Git command '{}' failed with the following error:".format(e.args[0])
+    print e.args[1].rstrip('\n')
+    restore_branch(branch_name, old_head)
+    die("'{}' restored to its original location".format(branch_name))
 
 print "Re-timestamp complete."
 
