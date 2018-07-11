@@ -125,7 +125,7 @@ def restore_branch(branch_name, old_head):
     print "Restoring branch '{}' to its old HEAD".format(branch_name)
     try:
         git.run_command('checkout', '-B', branch_name, old_head)
-    except GitException as e:
+    except git.GitException as e:
         print "Git command '{}' failed with the following error:".format(e.args[0])
         die(e.args[1].rstrip('\n'))
 
@@ -169,7 +169,7 @@ commits_range_argument = 'HEAD~' + str(num_commits)
 # original HEAD if something goes wrong while resetting the timestamps)
 try:
     old_head = git.run_command('rev-parse', 'HEAD')
-except GitException as e:
+except git.GitException as e:
     print "Git command '{}' failed with the following error:".format(e.args[0])
     die(e.args[1].rstrip('\n'))
 
@@ -195,7 +195,7 @@ try:
         print "Something went wrong with the re-timestamp operation"
         restore_branch(branch_name, old_head)
         die("'{}' restored to its original location".format(branch_name))
-except GitException as e:
+except git.GitException as e:
     print "Git command '{}' failed with the following error:".format(e.args[0])
     print e.args[1].rstrip('\n')
     restore_branch(branch_name, old_head)
